@@ -1,0 +1,165 @@
+import React, { useState } from 'react';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
+
+const InvestmentCalculator = () => {
+  const [inputs, setInputs] = useState({
+    initialAmount: 7600000,
+    monthlyWithdrawal: 70000,
+    years: 3,
+    dropPercentage: 60,
+    risePercentage: 150,
+  });
+
+  const [results, setResults] = useState(null);
+
+  const simulate = () => {
+    const periodDays = inputs.years * 250;
+    const halfPoint = Math.floor(periodDays / 2);
+    
+    // 建立股價序列
+    const firstHalf = Array.from({ length: halfPoint }, (_, i) => 
+      1 - (inputs.dropPercentage / 100) * (i / halfPoint)
+    );
+    
+    const multiplier = 1 / (1 - inputs.dropPercentage / 100);
+    const secondHalf = Array.from({ length: periodDays - halfPoint }, (_, i) => 
+      (1 - inputs.dropPercentage / 100) * Math.pow(multiplier, i / halfPoint)
+    );
+    
+    const priceData = [...firstHalf, ...secondHalf];
+    
+    // 模擬交易
+    let stock = inputs.initialAmount * 0.8;
+    let cash = inputs.initialAmount * 0.2;
+    let rebalanceCount = 0;
+    
+    const data = priceData.map((price, day) => {
+      stock = stock * (day > 0 ? price / priceData[day - 1] : 1);
+      
+      if (day % 20 === 0) {
+        cash -= inputs.monthlyWithdrawal;
+      }
+      
+      const ratio = stock / cash;
+      const total = stock + cash;
+      
+      if (ratio < 2.5 || ratio > 8.5) {
+        const newTotal = stock + cash;
+        stock = newTotal * 0.8;
+        cash = newTotal * 0.2;
+        rebalanceCount++;
+      }
+      
+      return {
+        day: day + 1,
+        total: stock + cash,
+        price: price,
+      };
+    });
+    
+    setResults({
+      data,
+      finalTotal: data[data.length - 1].total,
+      minTotal: Math.min(...data.map(d => d.total)),
+      rebalanceCount,
+    });
+  };
+
+  return (
+    <div className="p-4 max-w-4xl mx-auto">
+      <Card>
+        <CardHeader>
+          <CardTitle>投資提領模擬計算機</CardTitle>
+          <CardDescription>模擬不同市場條件下的資產變化</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="initialAmount">初始資金</Label>
+                <Input
+                  id="initialAmount"
+                  type="number"
+                  value={inputs.initialAmount}
+                  onChange={(e) => setInputs({...inputs, initialAmount: Number(e.target.value)})}
+                />
+              </div>
+              <div>
+                <Label htmlFor="monthlyWithdrawal">每月提領</Label>
+                <Input
+                  id="monthlyWithdrawal"
+                  type="number"
+                  value={inputs.monthlyWithdrawal}
+                  onChange={(e) => setInputs({...inputs, monthlyWithdrawal: Number(e.target.value)})}
+                />
+              </div>
+              <div>
+                <Label htmlFor="years">年數</Label>
+                <Input
+                  id="years"  
+                  type="number"  
+                  value={inputs.years}
+                  onChange={(e) => setInputs({...inputs, years: Number(e.target.value)})}
+                />
+              </div>
+              <div>
+                <Label htmlFor="dropPercentage">跌幅 (%)</Label>
+                <Input
+                  id="dropPercentage"  
+                  type="number"  
+                  value={inputs.dropPercentage}
+                  onChange={(e) => setInputs({...inputs, dropPercentage: Number(e.target.value)})}
+                />
+              </div>
+              <div>
+                <Label htmlFor="risePercentage">漲幅 (%)</Label>
+                <Input
+                  id="risePercentage"
+                  type="number"
+                  value={inputs.risePercentage}
+                  onChange={(e) => setInputs({...inputs, risePercentage: Number(e.target.value)})}
+                />
+              </div>
+            </div>
+            
+            <Button onClick={simulate}>開始模擬</Button>
+
+            {results && (
+              <div className="mt-4">        
+                <h3 className="text-lg font-semibold mb-2">模擬結果</h3>
+                <div className="grid gap-2">
+                  <p>最終資產: {results.finalTotal.toLocaleString()} 元</p>
+                  <p>最低點: {results.minTotal.toLocaleString()} 元</p>
+                  <p>再平衡次數: {results.rebalanceCount} 次</p>
+                </div>
+                
+                <div className="mt-4">          
+                  <LineChart width={600} height={300} data={results.data}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="day" />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Line type="monotone" dataKey="total" stroke="#8884d8" name="總資產" />
+                  </LineChart>
+                </div>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+export default InvestmentCalculator;
